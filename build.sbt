@@ -34,7 +34,7 @@ lazy val commonSettings = Seq(
 
 lazy val dependencies = Seq(
   libraryDependencies ++= Seq(
-    // main dependencies
+    "dev.zio" %% "zio" % "1.0.9"
   ),
   libraryDependencies ++= Seq(
     org.scalatest.scalatest,
