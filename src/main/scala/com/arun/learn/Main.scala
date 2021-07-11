@@ -19,8 +19,8 @@ object Main extends scala.App:
       // _ <- ZIO.fail(RuntimeException("boom")) // type of program: ZIO[RuntimeExcpetion, Unit
       _ <- ZIO
         .effect(throw RuntimeException("boom")) // type of program: ZIO[Throwable,Unit]
-        // .catchAll(_ => ZIO.succeed("ignore error")) //type of program: ZIO[Nothing, unit]
-        .mapError(_.getMessage) //type of program: ZIO[String, unit]
+        .catchAll(_ => ZIO.succeed("ignore error")) //type of program: ZIO[Nothing, unit]
+      //.mapError(_.getMessage) //type of program: ZIO[String, unit]
       _ <- console.putStrLn(s"Hello $name")
 
       // _ <- ZIO.fail("BOOM") //throw error
