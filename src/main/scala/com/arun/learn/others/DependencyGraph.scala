@@ -4,56 +4,87 @@ import com.arun.learn.ZIO
 import com.arun.learn.console
 import com.arun.learn.Runtime
 
-trait BusinessLogic:
-  def doesGoogleHaveEvenAmountOfPictures(topic: String): Boolean
+object businessLogic:
+  trait BusinessLogic:
+    def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[Any, Nothing, Boolean]
 
-object BusinessLogic:
-  lazy val live: ZIO[Google, Nothing, BusinessLogic] = //my using this we would not need to pass google to create instance, when using then we can pass
-    ZIO.fromFunction(make)
+  object BusinessLogic:
+    lazy val live: ZIO[Google, Nothing, BusinessLogic] = //my using this we would not need to pass google to create instance, when using then we can pass
+      ZIO.fromFunction(make)
+    def make(google: Google): BusinessLogic =
+      new:
+        override def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[Any, Nothing, Boolean] =
+          google.countPicturesOf(topic).map(_ % 2 == 0)
 
-  def make(google: Google): BusinessLogic =
-    new:
-      override def doesGoogleHaveEvenAmountOfPictures(topic: String): Boolean =
-        google.countPicturesOf(topic) % 2 == 0
+  def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[BusinessLogic, Nothing, Boolean] =
+    ZIO.accessM[BusinessLogic](_.doesGoogleHaveEvenAmountOfPictures(topic))
 trait Google:
-  def countPicturesOf(topic: String): Int
+  def countPicturesOf(topic: String): ZIO[Any, Nothing, Int]
 
 object GoogleImpl:
   lazy val live: ZIO[Any, Nothing, Google] = // Any is used here just to make live a fxn, and can be ignored when used
     ZIO.succeed(make)
   def make: Google =
     new:
-      override def countPicturesOf(topic: String): Int =
-        if (topic == "cat") 1337 else 1338
+      override def countPicturesOf(topic: String): ZIO[Any, Nothing, Int] =
+        ZIO.succeed(if (topic == "cat") 1337 else 1338)
 
 object DependencyGraph:
-  lazy val live: ZIO[Any, Nothing, BusinessLogic] =
+  lazy val live: ZIO[Any, Nothing, businessLogic.BusinessLogic] =
     for
-      google <- GoogleImpl.live
-      businessLogicMaker <- BusinessLogic.live.provide(google)
-    yield businessLogicMaker
+      g <- GoogleImpl.live
+      bl <- businessLogic.BusinessLogic.live.provide(g)
+    yield bl
 
   // lazy val liveOld: Any => BusinessLogic = BusinessLogic.live.compose(GoogleImpl.live) // OR GoogleImpl.live.andThen(BusinessLogic.live)
 
-  lazy val makeOld: BusinessLogic =
-    BusinessLogic.make(GoogleImpl.make)
+  lazy val makeOld: businessLogic.BusinessLogic =
+    businessLogic.BusinessLogic.make(GoogleImpl.make)
 
-  lazy val make: BusinessLogic =
-    val google = GoogleImpl.make
-    val businessLogic = BusinessLogic.make(google)
-
-    businessLogic
+  lazy val make: businessLogic.BusinessLogic =
+    val g = GoogleImpl.make
+    val bl = businessLogic.BusinessLogic.make(g)
+    bl
 
 object RunMain extends scala.App:
-  Runtime.default.unsafeRunToSync(program)
-  lazy val program =
+  // commented in favour of runtime on line 70
+  // Runtime.default.unsafeRunToSync(program)
+  /*
+problem with this approach is we cannot inject dependency
+lazy val program =
     for
       businessLogic <- DependencyGraph.live
       _ <- console.putStrLn("-" * 100)
       _ <- console.putStrLn(businessLogic.doesGoogleHaveEvenAmountOfPictures("cat").toString)
       _ <- console.putStrLn(businessLogic.doesGoogleHaveEvenAmountOfPictures("dog").toString)
       _ <- console.putStrLn("-" * 100)
+    yield ()*/
+// to pass dependency using argument we can do something like this
+  /*lazy val program =
+    for {
+      businessLogic <- DependencyGraph.live
+      p <- makeProgram(businessLogic)
+    } yield p
+
+  def makeProgram(businessLogic: BusinessLogic) =*/
+// now we want to do above thing using reader way. using fromFunction
+  Runtime.default.unsafeRunToSync(program.provide(DependencyGraph.make))
+  lazy val program: ZIO[businessLogic.BusinessLogic, Nothing, Unit] =
+    for
+      //bl <- ZIO.environment
+      // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
+      // ZIO.fromFunction((r: BusinessLogic) => r)
+      _ <- console.putStrLn("-" * 100)
+      cats <- businessLogic.doesGoogleHaveEvenAmountOfPictures("cat")
+      _ <- console.putStrLn(cats.toString)
+      dogs <- businessLogic.doesGoogleHaveEvenAmountOfPictures("dog")
+      //map removed by access
+      //dogs <- ZIO.access[BusinessLogic].map(_.doesGoogleHaveEvenAmountOfPictures("dog"))
+      _ <- console.putStrLn(dogs.toString)
+
+      _ <- console.putStrLn("-" * 100)
     yield ()
+
 /* We will write this using ZIO:
   val businessLogic = DependencyGraph
     .live
