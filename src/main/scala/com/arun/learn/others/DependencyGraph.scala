@@ -48,12 +48,6 @@ object DependencyGraph:
     val bl = businessLogic.BusinessLogic.make(g)
     bl
 
-trait HasConsole:
-  def consoles: console.Console
-
-trait HasBusinessLogic:
-  def businessLogics: businessLogic.BusinessLogic
-
 object RunMain extends scala.App:
   // commented in favour of runtime on line 70
   // Runtime.default.unsafeRunToSync(program)
@@ -80,11 +74,7 @@ lazy val program =
   lazy val program =
     for
       bl <- DependencyGraph.live
-      p <- makeProgram.provide {
-        new HasConsole with HasBusinessLogic:
-          override lazy val consoles = console.Console.make
-          override lazy val businessLogics = bl
-      }
+      p <- makeProgram.provide(zio.Has(bl) `union` zio.Has(console.Console.make))
     yield p
 //problem here is: code doesnt know how to pass console
 // solution : use cake pattern to provide console
@@ -93,16 +83,16 @@ lazy val program =
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
       // ZIO.fromFunction((r: BusinessLogic) => r)
-      env <- ZIO.environment[HasConsole & HasBusinessLogic]
-      _ <- env.consoles.putStrLn("-" * 100)
-      cats <- env.businessLogics.doesGoogleHaveEvenAmountOfPictures("cat")
-      _ <- env.consoles.putStrLn(cats.toString)
-      dogs <- env.businessLogics.doesGoogleHaveEvenAmountOfPictures("dog")
+      env <- ZIO.environment[zio.Has[console.Console] & zio.Has[businessLogic.BusinessLogic]]
+      _ <- env.get[console.Console].putStrLn("-" * 100)
+      cats <- env.get[businessLogic.BusinessLogic].doesGoogleHaveEvenAmountOfPictures("cat")
+      _ <- env.get[console.Console].putStrLn(cats.toString)
+      dogs <- env.get[businessLogic.BusinessLogic].doesGoogleHaveEvenAmountOfPictures("dog")
       //map removed by access
       //dogs <- ZIO.access[BusinessLogic].map(_.doesGoogleHaveEvenAmountOfPictures("dog"))
-      _ <- env.consoles.putStrLn(dogs.toString)
+      _ <- env.get[console.Console].putStrLn(dogs.toString)
 
-      _ <- console.putStrLn("-" * 100)
+      _ <- env.get[console.Console].putStrLn("-" * 100)
     yield ()
 
 /* We will write this using ZIO:
