@@ -1,5 +1,6 @@
 package com.arun.learn
 
+import scala.reflect.ClassTag
 // type Thunk[A] = () => A
 
 // final case class ZIO[A](thunk: Thunk[A]) both are same. avoid type becuase we are going to use it once
@@ -17,6 +18,14 @@ final case class ZIO[-R, +E, A](run: R => Either[E, A]):
   //map for error channel
   def mapError[E2](h: E => E2): ZIO[R, E2, A] =
     ZIO(r => run(r).left.map(h))
+
+  def provideSome[R0](f: R0 => R): ZIO[R0, E, A] =
+    ZIO.accessM(r0 => provide(f(r0)))
+  /* for {
+      r0 <- ZIO.environment[R0]
+      r = f(r0)
+      a <- provide(r)
+    } yield a*/
 
   def provide(r: => R): ZIO[Any, E, A] =
     ZIO(_ => run(r))
@@ -83,7 +92,22 @@ object console:
 
 object Runtime:
   object default:
-    def unsafeRunSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
-      zio.run(console.Console.make)
+    def unsafeRunSync[E, A](zio: => ZIO[Has[ZEnv], E, A]): Either[E, A] =
+      zio.run(Has(console.Console.make))
 
 type ZEnv = console.Console
+
+final class Has[A] private (private val map: Map[String, Any])
+object Has:
+  def apply[A](a: A)(using tag: ClassTag[A]): Has[A] =
+    new Has(Map(tag.toString -> a))
+
+  extension [A <: Has[?]](a: A)
+    inline def ++[B <: Has[?]](b: B): A & B =
+      union(b)
+
+    infix def union[B <: Has[?]](b: B): A & B =
+      new Has(a.map ++ b.map).asInstanceOf[A & B]
+
+    def get[S](using tag: ClassTag[S], view: A => Has[S]): S =
+      a.map(tag.toString).asInstanceOf[S]
