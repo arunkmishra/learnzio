@@ -72,7 +72,7 @@ lazy val program =
   lazy val program =
     for
       bl <- DependencyGraph.live
-      p <- makeProgram.provideSome[Has[ZEnv]](_ union Has(bl))
+      p <- makeProgram.provideCustomLayer(Has(bl))
     yield p
 //problem here is: code doesnt know how to pass console
 // solution : use cake pattern to provide console
