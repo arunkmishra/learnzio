@@ -1,8 +1,6 @@
 package com.arun.learn.others
 
-import com.arun.learn.ZIO
-import com.arun.learn.console
-import com.arun.learn.Runtime
+import com.arun.learn.*
 // import zio.*
 
 object businessLogic:
@@ -74,7 +72,7 @@ lazy val program =
   lazy val program =
     for
       bl <- DependencyGraph.live
-      p <- makeProgram.provide(zio.Has(bl) `union` zio.Has(console.Console.make))
+      p <- makeProgram.provideSome[Has[ZEnv]](_ union Has(bl))
     yield p
 //problem here is: code doesnt know how to pass console
 // solution : use cake pattern to provide console
@@ -83,7 +81,7 @@ lazy val program =
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
       // ZIO.fromFunction((r: BusinessLogic) => r)
-      env <- ZIO.environment[zio.Has[console.Console] & zio.Has[businessLogic.BusinessLogic]]
+      env <- ZIO.environment[Has[console.Console] & Has[businessLogic.BusinessLogic]]
       _ <- env.get[console.Console].putStrLn("-" * 100)
       cats <- env.get[businessLogic.BusinessLogic].doesGoogleHaveEvenAmountOfPictures("cat")
       _ <- env.get[console.Console].putStrLn(cats.toString)
