@@ -19,6 +19,12 @@ final case class ZIO[-R, +E, A](run: R => Either[E, A]):
   def mapError[E2](h: E => E2): ZIO[R, E2, A] =
     ZIO(r => run(r).left.map(h))
 
+  // R -> Has[ZEnv] & Has[BusinessLogic]
+  // R1 -> Has[BusinessLogic]
+  // Has[ZEnv] & R1 -> R
+  def provideCustomLayer[R1 <: Has[?]](r1: => R1)(using Has[ZEnv] & R1 => R): ZIO[Has[ZEnv], E, A] =
+    provideSome[Has[ZEnv]](_.union(r1).asInstanceOf[R])
+
   def provideSome[R0](f: R0 => R): ZIO[R0, E, A] =
     ZIO.accessM(r0 => provide(f(r0)))
   /* for {
