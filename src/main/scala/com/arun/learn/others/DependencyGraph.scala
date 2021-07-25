@@ -3,6 +3,7 @@ package com.arun.learn.others
 import com.arun.learn.ZIO
 import com.arun.learn.console
 import com.arun.learn.Runtime
+// import zio.*
 
 object businessLogic:
   trait BusinessLogic:
@@ -18,6 +19,7 @@ object businessLogic:
 
   def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[BusinessLogic, Nothing, Boolean] =
     ZIO.accessM[BusinessLogic](_.doesGoogleHaveEvenAmountOfPictures(topic))
+
 trait Google:
   def countPicturesOf(topic: String): ZIO[Any, Nothing, Int]
 
@@ -68,8 +70,14 @@ lazy val program =
 
   def makeProgram(businessLogic: BusinessLogic) =*/
 // now we want to do above thing using reader way. using fromFunction
-  Runtime.default.unsafeRunToSync(program.provide(DependencyGraph.make))
-  lazy val program: ZIO[businessLogic.BusinessLogic, Nothing, Unit] =
+  Runtime.default.unsafeRunSync(program)
+  lazy val program =
+    for {
+      bl <- DependencyGraph.live
+      p <- makeProgram.provide(bl)
+    } yield p
+
+  lazy val makeProgram: ZIO[businessLogic.BusinessLogic, Nothing, Unit] =
     for
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
