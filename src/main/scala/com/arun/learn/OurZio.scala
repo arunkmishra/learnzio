@@ -62,15 +62,23 @@ object ZIO:
     ZIO.fromFunction(Predef.identity)
 
 object console:
-  def putStrLn(line: String) =
-    ZIO.succeed(println(s"$line"))
+  trait Console:
+    def putStrLn(line: String): ZIO[Any, Nothing, Unit]
+    def getStrLn: ZIO[Any, Nothing, String]
+  object Console:
+    lazy val live: ZIO[Any, Nothing, Console]=
+      ZIO.succeed(make)
+    lazy val make: Console =
+      new:
+      def putStrLn(line: String) =
+        ZIO.succeed(println(s"$line"))
 
-  lazy val getStrLn =
-    ZIO.succeed(scala.io.StdIn.readLine())
+      lazy val getStrLn =
+        ZIO.succeed(scala.io.StdIn.readLine())
 
 object Runtime:
   object default:
-    def unsafeRunToSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
+    def unsafeRunSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
       zio.run(())
 
 type ZEnv = Unit
