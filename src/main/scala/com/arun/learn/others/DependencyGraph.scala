@@ -76,8 +76,8 @@ lazy val program =
       bl <- DependencyGraph.live
       p <- makeProgram.provide(bl)
     } yield p
-
-  lazy val makeProgram: ZIO[businessLogic.BusinessLogic, Nothing, Unit] =
+//problem here is: code doesnt know how to pass console
+  lazy val makeProgram =
     for
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)

@@ -66,19 +66,24 @@ object console:
     def putStrLn(line: String): ZIO[Any, Nothing, Unit]
     def getStrLn: ZIO[Any, Nothing, String]
   object Console:
-    lazy val live: ZIO[Any, Nothing, Console]=
+    lazy val live: ZIO[Any, Nothing, Console] =
       ZIO.succeed(make)
     lazy val make: Console =
       new:
-      def putStrLn(line: String) =
-        ZIO.succeed(println(s"$line"))
+        def putStrLn(line: String) =
+          ZIO.succeed(println(s"$line"))
+        lazy val getStrLn =
+          ZIO.succeed(scala.io.StdIn.readLine())
 
-      lazy val getStrLn =
-        ZIO.succeed(scala.io.StdIn.readLine())
+  def putStrLn(line: String): ZIO[Console, Nothing, Unit] =
+    ZIO.accessM(_.putStrLn(line))
+
+  def getStrLn: ZIO[Console, Nothing, String] =
+    ZIO.accessM(_.getStrLn)
 
 object Runtime:
   object default:
     def unsafeRunSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
-      zio.run(())
+      zio.run((console.Console.make))
 
-type ZEnv = Unit
+type ZEnv = console.Console
