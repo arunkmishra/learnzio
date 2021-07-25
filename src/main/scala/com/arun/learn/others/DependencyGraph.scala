@@ -4,19 +4,21 @@ import com.arun.learn.*
 // import zio.*
 
 object businessLogic:
-  trait BusinessLogic:
-    def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[Any, Nothing, Boolean]
+  type BusinessLogic = Has[BusinessLogic.Service]
 
   object BusinessLogic:
-    lazy val live: ZIO[Google, Nothing, BusinessLogic] = //my using this we would not need to pass google to create instance, when using then we can pass
+    trait Service:
+      def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[Any, Nothing, Boolean]
+
+    lazy val live: ZIO[Google, Nothing, Service] = //my using this we would not need to pass google to create instance, when using then we can pass
       ZIO.fromFunction(make)
-    def make(google: Google): BusinessLogic =
+    def make(google: Google): Service =
       new:
         override def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[Any, Nothing, Boolean] =
           google.countPicturesOf(topic).map(_ % 2 == 0)
 
   def doesGoogleHaveEvenAmountOfPictures(topic: String): ZIO[BusinessLogic, Nothing, Boolean] =
-    ZIO.accessM[BusinessLogic](_.doesGoogleHaveEvenAmountOfPictures(topic))
+    ZIO.accessM(_.get.doesGoogleHaveEvenAmountOfPictures(topic))
 
 trait Google:
   def countPicturesOf(topic: String): ZIO[Any, Nothing, Int]
@@ -30,7 +32,7 @@ object GoogleImpl:
         ZIO.succeed(if (topic == "cat") 1337 else 1338)
 
 object DependencyGraph:
-  lazy val live: ZIO[Any, Nothing, businessLogic.BusinessLogic] =
+  lazy val live: ZIO[Any, Nothing, businessLogic.BusinessLogic.Service] =
     for
       g <- GoogleImpl.live
       bl <- businessLogic.BusinessLogic.live.provide(g)
@@ -38,10 +40,10 @@ object DependencyGraph:
 
   // lazy val liveOld: Any => BusinessLogic = BusinessLogic.live.compose(GoogleImpl.live) // OR GoogleImpl.live.andThen(BusinessLogic.live)
 
-  lazy val makeOld: businessLogic.BusinessLogic =
+  lazy val makeOld: businessLogic.BusinessLogic.Service =
     businessLogic.BusinessLogic.make(GoogleImpl.make)
 
-  lazy val make: businessLogic.BusinessLogic =
+  lazy val make: businessLogic.BusinessLogic.Service =
     val g = GoogleImpl.make
     val bl = businessLogic.BusinessLogic.make(g)
     bl
@@ -72,7 +74,7 @@ lazy val program =
   lazy val program =
     for
       bl <- DependencyGraph.live
-      p <- makeProgram.provideCustomLayer(Has(bl))
+      p <- makeProgram.provideCustomLayer(Has(bl)) // makeProgram.provideSome[ZEnv](_ union Has(bl))
     yield p
 //problem here is: code doesnt know how to pass console
 // solution : use cake pattern to provide console
@@ -81,16 +83,15 @@ lazy val program =
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
       // ZIO.fromFunction((r: BusinessLogic) => r)
-      env <- ZIO.environment[Has[console.Console] & Has[businessLogic.BusinessLogic]]
-      _ <- env.get[console.Console].putStrLn("-" * 100)
-      cats <- env.get[businessLogic.BusinessLogic].doesGoogleHaveEvenAmountOfPictures("cat")
-      _ <- env.get[console.Console].putStrLn(cats.toString)
-      dogs <- env.get[businessLogic.BusinessLogic].doesGoogleHaveEvenAmountOfPictures("dog")
+      _ <- console.putStrLn("-" * 100)
+      cats <- businessLogic.doesGoogleHaveEvenAmountOfPictures("cat")
+      _ <- console.putStrLn(cats.toString)
+      dogs <- businessLogic.doesGoogleHaveEvenAmountOfPictures("dog")
       //map removed by access
       //dogs <- ZIO.access[BusinessLogic].map(_.doesGoogleHaveEvenAmountOfPictures("dog"))
-      _ <- env.get[console.Console].putStrLn(dogs.toString)
+      _ <- console.putStrLn(dogs.toString)
 
-      _ <- env.get[console.Console].putStrLn("-" * 100)
+      _ <- console.putStrLn("-" * 100)
     yield ()
 
 /* We will write this using ZIO:

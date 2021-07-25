@@ -19,11 +19,13 @@ final case class ZIO[-R, +E, A](run: R => Either[E, A]):
   def mapError[E2](h: E => E2): ZIO[R, E2, A] =
     ZIO(r => run(r).left.map(h))
 
-  // R -> Has[ZEnv] & Has[BusinessLogic]
+  def provideCustom[R1: ClassTag](r1: => R1)(using ZEnv & Has[R1] => R): ZIO[ZEnv, E, A] =
+    provideCustomLayer(Has(r1))
+  // R -> ZEnv & Has[BusinessLogic]
   // R1 -> Has[BusinessLogic]
-  // Has[ZEnv] & R1 -> R
-  def provideCustomLayer[R1 <: Has[?]](r1: => R1)(using Has[ZEnv] & R1 => R): ZIO[Has[ZEnv], E, A] =
-    provideSome[Has[ZEnv]](_.union(r1).asInstanceOf[R])
+  // ZEnv & R1 -> R
+  def provideCustomLayer[R1 <: Has[?]](r1: => R1)(using ZEnv & R1 => R): ZIO[ZEnv, E, A] =
+    provideSome[ZEnv](_.union(r1).asInstanceOf[R])
 
   def provideSome[R0](f: R0 => R): ZIO[R0, E, A] =
     ZIO.accessM(r0 => provide(f(r0)))
@@ -77,13 +79,15 @@ object ZIO:
     ZIO.fromFunction(Predef.identity)
 
 object console:
-  trait Console:
-    def putStrLn(line: String): ZIO[Any, Nothing, Unit]
-    def getStrLn: ZIO[Any, Nothing, String]
+  type Console = Has[Console.Service]
   object Console:
-    lazy val live: ZIO[Any, Nothing, Console] =
+    trait Service:
+      def putStrLn(line: String): ZIO[Any, Nothing, Unit]
+      def getStrLn: ZIO[Any, Nothing, String]
+
+    lazy val live: ZIO[Any, Nothing, Service] =
       ZIO.succeed(make)
-    lazy val make: Console =
+    lazy val make: Service =
       new:
         def putStrLn(line: String) =
           ZIO.succeed(println(s"$line"))
@@ -91,17 +95,17 @@ object console:
           ZIO.succeed(scala.io.StdIn.readLine())
 
   def putStrLn(line: String): ZIO[Console, Nothing, Unit] =
-    ZIO.accessM(_.putStrLn(line))
+    ZIO.accessM(_.get.putStrLn(line))
 
   def getStrLn: ZIO[Console, Nothing, String] =
-    ZIO.accessM(_.getStrLn)
+    ZIO.accessM(_.get.getStrLn)
 
 object Runtime:
   object default:
-    def unsafeRunSync[E, A](zio: => ZIO[Has[ZEnv], E, A]): Either[E, A] =
+    def unsafeRunSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
       zio.run(Has(console.Console.make))
 
-type ZEnv = console.Console
+type ZEnv = Has[console.Console.Service]
 
 final class Has[A] private (private val map: Map[String, Any])
 object Has:
@@ -115,5 +119,7 @@ object Has:
     infix def union[B <: Has[?]](b: B): A & B =
       new Has(a.map ++ b.map).asInstanceOf[A & B]
 
-    def get[S](using tag: ClassTag[S], view: A => Has[S]): S =
+    // DO NOT change the ORDER of the parameter list
+    // The current order is more type inference friendly
+    def get[S](using view: A => Has[S], tag: ClassTag[S]): S =
       a.map(tag.toString).asInstanceOf[S]
