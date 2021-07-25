@@ -84,6 +84,6 @@ object console:
 object Runtime:
   object default:
     def unsafeRunSync[E, A](zio: => ZIO[ZEnv, E, A]): Either[E, A] =
-      zio.run((console.Console.make))
+      zio.run(console.Console.make)
 
 type ZEnv = console.Console

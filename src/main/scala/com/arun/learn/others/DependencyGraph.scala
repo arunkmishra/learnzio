@@ -48,6 +48,12 @@ object DependencyGraph:
     val bl = businessLogic.BusinessLogic.make(g)
     bl
 
+trait HasConsole:
+  def consoles: console.Console
+
+trait HasBusinessLogic:
+  def businessLogics: businessLogic.BusinessLogic
+
 object RunMain extends scala.App:
   // commented in favour of runtime on line 70
   // Runtime.default.unsafeRunToSync(program)
@@ -72,23 +78,29 @@ lazy val program =
 // now we want to do above thing using reader way. using fromFunction
   Runtime.default.unsafeRunSync(program)
   lazy val program =
-    for {
+    for
       bl <- DependencyGraph.live
-      p <- makeProgram.provide(bl)
-    } yield p
+      p <- makeProgram.provide {
+        new HasConsole with HasBusinessLogic:
+          override lazy val consoles = console.Console.make
+          override lazy val businessLogics = bl
+      }
+    yield p
 //problem here is: code doesnt know how to pass console
+// solution : use cake pattern to provide console
   lazy val makeProgram =
     for
       //bl <- ZIO.environment
       // ZIO.fromFunction[BusinessLogic, BusinessLogic](identity)
       // ZIO.fromFunction((r: BusinessLogic) => r)
-      _ <- console.putStrLn("-" * 100)
-      cats <- businessLogic.doesGoogleHaveEvenAmountOfPictures("cat")
-      _ <- console.putStrLn(cats.toString)
-      dogs <- businessLogic.doesGoogleHaveEvenAmountOfPictures("dog")
+      env <- ZIO.environment[HasConsole & HasBusinessLogic]
+      _ <- env.consoles.putStrLn("-" * 100)
+      cats <- env.businessLogics.doesGoogleHaveEvenAmountOfPictures("cat")
+      _ <- env.consoles.putStrLn(cats.toString)
+      dogs <- env.businessLogics.doesGoogleHaveEvenAmountOfPictures("dog")
       //map removed by access
       //dogs <- ZIO.access[BusinessLogic].map(_.doesGoogleHaveEvenAmountOfPictures("dog"))
-      _ <- console.putStrLn(dogs.toString)
+      _ <- env.consoles.putStrLn(dogs.toString)
 
       _ <- console.putStrLn("-" * 100)
     yield ()
