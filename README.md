@@ -7,3 +7,4 @@
 - zio error[`E`] channel `matchError, catchAll, fail, effect`
 - zio reader[`R`] channel `provide, fromFunction`
 - zio reader[`R`] channel `identity, environment, access, accessM`
+- zio reader[`R`] channel `Has[?], provideSome, provideCustom, provideCustomlayer, `
